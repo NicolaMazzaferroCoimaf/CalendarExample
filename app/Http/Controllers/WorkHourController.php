@@ -10,32 +10,31 @@ class WorkHourController extends Controller
 {
     public function store(Request $request)
     {
+        // Validazione della richiesta
         $validated = $request->validate([
-            'employee_id' => 'required|array',
-            'employee_id.*' => 'exists:employees,id',
-            'work_date_range' => 'required|string',
-            'hours_worked' => 'required|integer|min:0|max:24'
+            'employee_ids' => 'required|string', // Gli ID dei dipendenti sono una stringa separata da virgole
+            'work_date' => 'required|date',      // Data di lavoro deve essere una data valida
+            'hours_worked' => 'required|numeric|min:0|max:24' // Le ore lavorate devono essere tra 0 e 24
         ]);
-    
-        // Estrai la data di inizio e fine dall'intervallo
-        [$startDate, $endDate] = explode(' - ', $validated['work_date_range']);
-        $startDate = Carbon::parse($startDate);
-        $endDate = Carbon::parse($endDate);
-    
-        foreach ($validated['employee_id'] as $employeeId) {
-            $currentDate = $startDate->copy();
-    
-            // Itera e crea un record di ore lavorate per ogni giorno dell'intervallo
-            while ($currentDate->lessThanOrEqualTo($endDate)) {
-                WorkHour::create([
+
+        // Estrai gli ID dei dipendenti dalla stringa e crea un array
+        $employeeIds = explode(',', $validated['employee_ids']);
+
+        // Itera su ogni dipendente selezionato e crea o aggiorna un record separato per ciascuno
+        foreach ($employeeIds as $employeeId) {
+            WorkHour::updateOrCreate(
+                [
                     'employee_id' => $employeeId,
-                    'work_date' => $currentDate->format('Y-m-d'),
+                    'work_date' => Carbon::parse($validated['work_date'])->format('Y-m-d'),
+                ],
+                [
                     'hours_worked' => $validated['hours_worked'],
-                ]);
-                $currentDate->addDay();
-            }
+                ]
+            );
         }
-    
-        return response()->json(['message' => 'Ore lavorate registrate con successo']);
-    }    
+
+        // Redirect alla vista 'showByDate' per la data specificata
+        return redirect()->route('absences.showByDate', ['date' => $validated['work_date']])
+                         ->with('message', 'Ore lavorate registrate con successo');
+    }
 }
